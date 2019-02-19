@@ -1,0 +1,217 @@
+---
+title: "MPEA Power Analysis"
+author: "Ali Shojaee Bakhtiari"
+date: '`r format(Sys.Date(), "%Y-%B-%d")`'
+output: html_document
+---
+
+
+# Running the power Scripts
+In this step we run and save the Power analysis for each of the 4 scenarios i.e. : 
+1) Keeping the effect constant and changing Enrichment levels
+2) Keeping enrichment level constant and varying effect level.
+3) Changing the pathway size compensation window Sizes
+4) Changing the pathway sizes.
+The default values ( unless changed for the process): \n
+1) 1% background enrichment and 10% pathway enrichment \n
+2) Expression size = 10000 \n
+3) Pathway size= 100 \n
+4) Background effect=1, Pathway effect=10 ( Ratio 10:1) \n
+5) Pathway reduction compensator size=10 \n
+
+
+```{r}
+# source(file = "power_analysis_similar_effect_variable_enrichment.R")
+# source(file = "power_analysis_variable_effect_similar_enrichment.R")
+# source(file = "power_analysis_window_size.R")
+# source(file = "power_analysis_variable_pathway_size.R")
+```
+
+# Uploading Packages 
+
+```{r}
+require(reshape2)
+require(ggplot2)
+```
+
+# Power Analysis of changing Enrichment percentage inside the pathway while keeping the effect sizes equal
+In this Scenario we focus on the effect of changing the enrichment level alone while the effect is similar for pathway and background. When Pathway enrichment = 0.01 t is indistinguishable from the background and power increases as the enrichment level increases.
+
+```{r}
+p_value_similar_effect_variable_enrichment <- readRDS(file = "p_value_similar_effect_variable_enrichment_mean.RDS")
+enrichment_percentage_pathway= seq(0.01,.1, by=0.01)
+power_output <- list()
+nsamples <- seq(20,100,20)
+for (jj in 1:length(enrichment_percentage_pathway)){
+ aux <- sapply(p_value_similar_effect_variable_enrichment, FUN = function(x) x[[jj]]< 0.05  )
+ power_output[[jj]] <- rowSums(aux)/dim(aux)[2] 
+  
+}  
+names(power_output) <- paste( "Enrichement=",enrichment_percentage_pathway, sep = "")
+power_analysis <- melt(power_output)
+power_analysis$Sample_size <- nsamples
+names(power_analysis) <- c("Power", "Enrichment","Sample_size")
+p <- ggplot(data = power_analysis, aes(x = Sample_size, y = Power, color=Enrichment))+ geom_line(size=2)+theme_bw()+
+  theme(axis.text=element_text(size=14), axis.title=element_text(size=14), legend.text=element_text(size=10), plot.title = element_text(hjust = 0.5))+xlab("Sample Size")+
+  ggtitle("Power analysis: Variable Enrichment Constant Effect")
+p
+```
+
+
+
+# Comparing the power of MPEA against GSEA for different effect and sample sizes
+
+In this set of simulation runs we compared the power of MPEA against GSEA while changing the effect size of the phenotype over the pathway. In our simulation runs for different sample sizes MPEA showed signifcantly higher sensitivity.
+
+
+```{r}
+rm(list=ls())
+p_value_variable_effect_similar_enrichment <- readRDS(file = "p_value_variable_effect_similar_enrichment_mean.RDS")
+effect_size= seq(1,6, by=1)
+# effect_size= c(1,3,6)
+
+power_output <- list()
+nsamples <- seq(20,100,20)
+for (jj in 1:length(effect_size)){
+  aux <- sapply(p_value_variable_effect_similar_enrichment, FUN = function(x) x[[jj]]< 0.05  )
+  power_output[[jj]] <- rowSums(aux)/dim(aux)[2] 
+  
+}  
+names(power_output) <- paste( "Effect=",effect_size, sep = "")
+power_analysis_MPEA <- melt(power_output)
+power_analysis_MPEA$Sample_size <- (nsamples)
+names(power_analysis_MPEA) <- c("Power", "Effect","Sample_size")
+power_analysis_MPEA$Effect <- paste("MPEA &", power_analysis_MPEA$Effect,sep = "")
+power_analysis_MPEA$Effectvalues= rep(effect_size,each=length(nsamples))
+power_analysis_MPEA$title=paste("MPEA Sample Size=",power_analysis_MPEA$Sample_size,sep = "")
+# p <- ggplot(data = power_analysis_MPEA, aes(x = Sample_size, y = Power, color=Effect))+ geom_line(size=2)+theme_bw()+
+#   theme(axis.text=element_text(size=14), axis.title=element_text(size=14), legend.text=element_text(size=10), plot.title = element_text(hjust = 0.5))+xlab("Sample Size")+
+#   ggtitle("Power analysis: Variable Effect Size ")
+# p
+
+# rm(list=ls())
+nsamples <- seq(20,100,20)
+power_output_GSEA <- readRDS("GSEA_power_similar_enrichment_variable_effect.RDS")
+power_analysis_GSEA <- melt(power_output_GSEA)
+power_analysis_GSEA$Sample_size <- (nsamples)
+names(power_analysis_GSEA) <- c("Effect","Power","Sample_size")
+power_analysis_GSEA$Effect <- paste("GSEA &", power_analysis_GSEA$Effect,sep = "")
+power_analysis_GSEA <- power_analysis_GSEA[c("Power", "Effect","Sample_size")]
+power_analysis_GSEA$Effectvalues= rep(effect_size,each=length(nsamples))
+power_analysis_GSEA$title=paste("GSEA Sample Size=",power_analysis_GSEA$Sample_size,sep = "")
+
+power_analysis <- rbind(power_analysis_MPEA,power_analysis_GSEA)
+
+
+power_analysis$Sample_size <- factor(power_analysis$Sample_size)
+p <-  ggplot(data = subset(power_analysis, Sample_size%in%c(100)), aes(x = Effectvalues, y = Power, color=title))+ geom_line(size=2)+theme_bw()+
+  theme(axis.text=element_text(size=14), axis.title=element_text(size=14), legend.text=element_text(size=10), plot.title = element_text(hjust = 0.5))+xlab("Effect Size")+
+  ggtitle("Power analysis: Variable Effect Size ")+ coord_fixed(ylim = c(0,1), ratio = 6/1)
+p
+
+p <-  ggplot(data = subset(power_analysis, Sample_size%in%c(80)), aes(x = Effectvalues, y = Power, color=title))+ geom_line(size=2)+theme_bw()+
+  theme(axis.text=element_text(size=14), axis.title=element_text(size=14), legend.text=element_text(size=10), plot.title = element_text(hjust = 0.5))+xlab("Effect Size")+
+  ggtitle("Power analysis: Variable Effect Size ")+ coord_fixed(ylim = c(0,1), ratio = 6/1)
+p
+
+p <-  ggplot(data = subset(power_analysis, Sample_size%in%c(40)), aes(x = Effectvalues, y = Power, color=title))+ geom_line(size=2)+theme_bw()+
+  theme(axis.text=element_text(size=14), axis.title=element_text(size=14), legend.text=element_text(size=10), plot.title = element_text(hjust = 0.5))+xlab("Effect Size")+
+  ggtitle("Power analysis: Variable Effect Size ")+ coord_fixed(ylim = c(0,1), ratio = 6/1)
+p
+
+p <-  ggplot(data = subset(power_analysis, Sample_size%in%c(20)), aes(x = Effectvalues, y = Power, color=title))+ geom_line(size=2)+theme_bw()+
+  theme(axis.text=element_text(size=14), axis.title=element_text(size=14), legend.text=element_text(size=10), plot.title = element_text(hjust = 0.5))+xlab("Effect Size")+
+  ggtitle("Power analysis: Variable Effect Size ")+ coord_fixed(ylim = c(0,1), ratio = 6/1)
+p
+
+
+```
+
+# GSEA power analysis while changing Effect size inside the pathway and keeping the enrichment level constant
+
+It appears that MPEA shows higher sensitivity overall and especially in smaller effects.
+
+```{r}
+# # rm(list=ls())
+# nsamples <- seq(20,100,20)
+# power_output <- readRDS("GSEA_power_similar_enrichment_variable_effect.RDS")
+# power_analysis <- melt(power_output)
+# power_analysis$Sample_size <- nsamples
+# names(power_analysis) <- c("Effect","Power","Sample_size")
+# powe
+# power_analysis <- power_analysis[c("Power", "Effect","Sample_size")]
+# p <-  ggplot(data = power_analysis, aes(x = Sample_size, y = Power, color=Effect))+ geom_line(size=2)+theme_bw()+
+#   theme(axis.text=element_text(size=14), axis.title=element_text(size=14), legend.text=element_text(size=10), plot.title = element_text(hjust = 0.5))+xlab("Sample Size")+
+#   ggtitle("Power analysis: Variable Effect Size ")
+# p
+```
+
+
+
+
+# Power Analysis of changing the Pathway compensator window size
+In this scenario, we keep every parameter as constant and only change the the Pathway compensator window size.
+
+
+
+```{r}
+rm(list=ls())
+p_value_variable_window_size <- readRDS(file = "p_value_variable_window_size_mean.RDS")
+SPZ= seq(5,20, by=5)
+power_output <- list()
+nsamples <- seq(20,100,20)
+for (jj in 1:length(SPZ)){
+  aux <- sapply(p_value_variable_window_size, FUN = function(x) x[[jj]]< 0.05  )
+  power_output[[jj]] <- rowSums(aux)/dim(aux)[2] 
+  
+}  
+names(power_output) <- paste( "Window Size=",SPZ, sep = "")
+power_analysis <- melt(power_output)
+power_analysis$Sample_size <- nsamples
+names(power_analysis) <- c("Power", "Window_Size","Sample_size")
+p <- ggplot(data = power_analysis, aes(x = Sample_size, y = Power, color=Window_Size))+ geom_line(size=2)+theme_bw()+
+  theme(axis.text=element_text(size=14), axis.title=element_text(size=14), legend.text=element_text(size=10), plot.title = element_text(hjust = 0.5))+xlab("Sample Size")+
+  ggtitle("Power analysis: Variable Window Size ")
+p
+
+```
+
+# Power Analysis of changing the Pathway Size
+In this scenario, we keep every parameter as constant and only change the the Pathway size.
+
+
+```{r}
+rm(list=ls())
+p_value_variable_pathway_size <- readRDS(file = "p_value_variable_pathway_size_mean.RDS")
+# pathway_size= seq(50,300, by=50)
+pathway_size= c(50,150,300)
+
+power_output_MPEA <- list()
+nsamples <- seq(20,100,20)
+for (jj in 1:length(pathway_size)){
+  aux <- sapply(p_value_variable_pathway_size, FUN = function(x) x[[jj]]< 0.05  )
+  power_output_MPEA[[jj]] <- rowSums(aux)/dim(aux)[2] 
+  
+}  
+names(power_output_MPEA) <- paste( "Pathway Size=",pathway_size, sep = "")
+power_analysis_MPEA <- melt(power_output_MPEA)
+power_analysis_MPEA$Sample_size <- nsamples
+names(power_analysis_MPEA) <- c("Power", "Pathway_Size","Sample_size")
+power_analysis_MPEA$Pathway_Size <- paste("MPEA &", power_analysis_MPEA$Pathway_Size)
+
+power_output_GSEA <- readRDS("GSEA_pathway_variable.RDS")
+power_analysis_GSEA <- melt(power_output_GSEA)
+power_analysis_GSEA$Sample_size <- nsamples
+names(power_analysis_GSEA) <- c("Pathway_Size","Power","Sample_size")
+power_analysis_GSEA <- power_analysis_GSEA[c("Power", "Pathway_Size","Sample_size")]
+power_analysis_GSEA$Pathway_Size <- paste("GSEA &", power_analysis_GSEA$Pathway_Size,sep = "")
+
+power_analysis <- rbind(power_analysis_MPEA,power_analysis_GSEA)
+
+p <- ggplot(data = power_analysis, aes(x = Sample_size, y = Power, color=Pathway_Size))+ geom_line(size=2)+theme_bw()+
+  theme(axis.text=element_text(size=14), axis.title=element_text(size=14), legend.text=element_text(size=10), plot.title = element_text(hjust = 0.5))+xlab("Sample Size")+
+  ggtitle("Power analysis: Pathway size ")
+p
+
+```
+
